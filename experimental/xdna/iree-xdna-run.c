@@ -299,31 +299,32 @@ static iree_status_t iree_xdna_run_open_endpoint(iree_xdna_run_t* run) {
   return status;
 }
 
+static iree_status_t iree_xdna_run_query_endpoint_info(
+    iree_xdna_run_t* run, amdf_xdna_endpoint_info_t* out_info) {
+  *out_info = (amdf_xdna_endpoint_info_t){
+      .type = AMDF_STRUCTURE_TYPE_XDNA_ENDPOINT_INFO,
+      .structure_size = sizeof(*out_info),
+  };
+  return IREE_HAL_AMD_STATUS_FROM_AMDF(
+      run->xdna_api->endpoint_query_info(run->endpoint, out_info),
+      "xdna.endpoint_query_info");
+}
+
 // Prints the exact profile identity string loom-compile expects after
 // "amd.xdna.aie2p:" for the endpoint --device admits. Manifest-driven
 // callers compile against this instead of guessing a device family.
 static iree_status_t iree_xdna_run_print_target(iree_xdna_run_t* run) {
   IREE_RETURN_IF_ERROR(iree_xdna_run_open_endpoint(run));
-  amdf_xdna_endpoint_info_t xdna_info = {
-      .type = AMDF_STRUCTURE_TYPE_XDNA_ENDPOINT_INFO,
-      .structure_size = sizeof(xdna_info),
-  };
-  IREE_RETURN_IF_ERROR(IREE_HAL_AMD_STATUS_FROM_AMDF(
-      run->xdna_api->endpoint_query_info(run->endpoint, &xdna_info),
-      "xdna.endpoint_query_info"));
+  amdf_xdna_endpoint_info_t xdna_info;
+  IREE_RETURN_IF_ERROR(iree_xdna_run_query_endpoint_info(run, &xdna_info));
   printf("%s\n", xdna_info.target_id);
   return iree_ok_status();
 }
 
 static iree_status_t iree_xdna_run_create_device(
     iree_xdna_run_t* run, iree_hal_amd_xdna_aie2p_target_t* out_target) {
-  amdf_xdna_endpoint_info_t xdna_info = {
-      .type = AMDF_STRUCTURE_TYPE_XDNA_ENDPOINT_INFO,
-      .structure_size = sizeof(xdna_info),
-  };
-  IREE_RETURN_IF_ERROR(IREE_HAL_AMD_STATUS_FROM_AMDF(
-      run->xdna_api->endpoint_query_info(run->endpoint, &xdna_info),
-      "xdna.endpoint_query_info"));
+  amdf_xdna_endpoint_info_t xdna_info;
+  IREE_RETURN_IF_ERROR(iree_xdna_run_query_endpoint_info(run, &xdna_info));
   IREE_RETURN_IF_ERROR(iree_hal_amd_xdna_aie2p_npu2_target_initialize(
       iree_make_cstring_view(xdna_info.target_id), (uint16_t)FLAG_columns,
       out_target));
