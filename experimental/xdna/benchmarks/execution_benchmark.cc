@@ -53,8 +53,8 @@ constexpr size_t kElementCount = 16;
 constexpr size_t kBindingByteLength = kElementCount * sizeof(uint32_t);
 constexpr size_t kStorageByteLength = 3 * kBindingByteLength;
 constexpr uint8_t kGuardValue = 0xA5;
-// Submit-only reports enqueue latency alone, so a fixed count bounds real
-// time instead of --benchmark_min_time; see the registration below.
+// Submit-only times the enqueue alone while every iteration still waits for
+// completion, so a fixed count bounds its wall time.
 constexpr int64_t kSubmitOnlyIterations = 200;
 using BindingValues = std::array<uint32_t, kElementCount>;
 constexpr BindingValues kValues = {
@@ -184,10 +184,8 @@ class ExecutionBenchmark {
     skip_reason_ = nullptr;
   }
 
-  // Times the submit (SubmitAndWait: submit+wait) span with a steady clock
-  // via SetIterationTime rather than PauseTiming: a paused interval is not
-  // bounded by --benchmark_min_time, so an unbounded completion wait excluded
-  // that way defeats it.
+  // Reports only the submit (SubmitAndWait: submit and wait) span; input
+  // writes and verification run outside it.
   template <CompletionTiming completion_timing>
   void Run(benchmark::State& state) {
     if (skip_reason_) {
