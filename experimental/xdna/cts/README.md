@@ -5,9 +5,11 @@ queue submission, readback and resource retirement through libamdf. They select
 the appropriate image for the available device family.
 
 `vector_copy_npu2_test` exercises C++ import, bytecode linking, compilation and
-native execution on NPU2 hardware using the Strix Halo profile. It is an explicit
-hardware test (`manual` in Bazel). Its compiler and importer dependencies are
-optional; the common importer package has no dependency on this native consumer.
+native execution on NPU2 hardware. It compiles against the exact profile the
+attached endpoint admits (`iree-xdna-run --print_target`), never a guessed
+device family. It is an explicit hardware test (`manual` in Bazel). Its compiler
+and importer dependencies are optional; the common importer package has no
+dependency on this native consumer.
 
 The same C++ source supplies scalar and 512-bit vector copy controls. Two workers
 process three records each, covering zero, one, four, nineteen and twenty blocks,

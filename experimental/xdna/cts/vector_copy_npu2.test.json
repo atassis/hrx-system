@@ -42,13 +42,18 @@
           }
         },
         {
+          "name": "target",
+          "run": {"tool": "iree-xdna-run", "args": ["--print_target"]},
+          "capture": "target"
+        },
+        {
           "name": "compile",
           "run": {
             "tool": "loom-compile",
             "args": [
               "{tmp}/module.loombc",
               "--root=@copy_packets",
-              "--target=amd.xdna.aie2p:amd.xdna.strix_halo.17f0_11",
+              "--target=amd.xdna.aie2p:{target}",
               "--output={tmp}/copy.xdna"
             ]
           }
@@ -123,13 +128,18 @@
           }
         },
         {
+          "name": "target",
+          "run": {"tool": "iree-xdna-run", "args": ["--print_target"]},
+          "capture": "target"
+        },
+        {
           "name": "compile",
           "run": {
             "tool": "loom-compile",
             "args": [
               "{tmp}/module.loombc",
               "--root=@copy_packets",
-              "--target=amd.xdna.aie2p:amd.xdna.strix_halo.17f0_11",
+              "--target=amd.xdna.aie2p:{target}",
               "--output={tmp}/copy.xdna"
             ]
           }

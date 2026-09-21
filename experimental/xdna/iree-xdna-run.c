@@ -25,6 +25,9 @@ IREE_FLAG(string, entry, "",
 IREE_FLAG(int32_t, columns, 0,
           "Logical context column count required by the image, in [1, 8].");
 IREE_FLAG(int32_t, device, 0, "XDNA endpoint ordinal in the native inventory.");
+IREE_FLAG(bool, print_target, false,
+          "Print the endpoint's admitted Loom target id and exit without "
+          "loading an image.");
 IREE_FLAG(int32_t, invocation_count, 1,
           "Number of independent invocations; each establishes the program's "
           "device state and waits for completion.");
@@ -294,6 +297,22 @@ static iree_status_t iree_xdna_run_open_endpoint(iree_xdna_run_t* run) {
                               FLAG_device);
   }
   return status;
+}
+
+// Prints the exact profile identity string loom-compile expects after
+// "amd.xdna.aie2p:" for the endpoint --device admits. Manifest-driven
+// callers compile against this instead of guessing a device family.
+static iree_status_t iree_xdna_run_print_target(iree_xdna_run_t* run) {
+  IREE_RETURN_IF_ERROR(iree_xdna_run_open_endpoint(run));
+  amdf_xdna_endpoint_info_t xdna_info = {
+      .type = AMDF_STRUCTURE_TYPE_XDNA_ENDPOINT_INFO,
+      .structure_size = sizeof(xdna_info),
+  };
+  IREE_RETURN_IF_ERROR(IREE_HAL_AMD_STATUS_FROM_AMDF(
+      run->xdna_api->endpoint_query_info(run->endpoint, &xdna_info),
+      "xdna.endpoint_query_info"));
+  printf("%s\n", xdna_info.target_id);
+  return iree_ok_status();
 }
 
 static iree_status_t iree_xdna_run_create_device(
@@ -930,6 +949,16 @@ static iree_status_t iree_xdna_run_deinitialize(iree_xdna_run_t* run) {
 }
 
 static iree_status_t iree_xdna_run_main(void) {
+  if (FLAG_print_target) {
+    if (FLAG_device < 0) {
+      return iree_make_status(IREE_STATUS_INVALID_ARGUMENT,
+                              "a nonnegative --device ordinal is required");
+    }
+    iree_xdna_run_t run = {.host_allocator = iree_allocator_system()};
+    const iree_status_t status = iree_xdna_run_print_target(&run);
+    const iree_status_t cleanup_status = iree_xdna_run_deinitialize(&run);
+    return iree_status_join(status, cleanup_status);
+  }
   if (FLAG_image[0] == 0 || FLAG_columns < 1 || FLAG_columns > 8 ||
       FLAG_device < 0 || FLAG_invocation_count < 1) {
     return iree_make_status(IREE_STATUS_INVALID_ARGUMENT,

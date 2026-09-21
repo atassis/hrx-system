@@ -178,6 +178,10 @@ class _Substituter:
         self._values = values
         self._tools = tools
 
+    def capture(self, key: str, stdout: bytes) -> None:
+        """Stores a step's stdout for substitution in later steps."""
+        self._values[key] = _decode_text(stdout).strip()
+
     def substitute(self, value: Any) -> Any:
         if isinstance(value, str):
             return self._substitute_string(value)
@@ -285,6 +289,7 @@ class ExecutionRunner:
                     step=substituter.substitute(step),
                     temp_dir=temp_dir,
                     step_outputs=step_outputs,
+                    substituter=substituter,
                 )
         except CaseFailure:
             failed = True
@@ -317,6 +322,7 @@ class ExecutionRunner:
         step: dict[str, Any],
         temp_dir: Path,
         step_outputs: dict[str, subprocess.CompletedProcess[bytes]],
+        substituter: _Substituter,
     ) -> None:
         if "write" in step:
             self._run_write_step(
@@ -378,6 +384,11 @@ class ExecutionRunner:
             case_name, step_name, argv, "stderr", completed.stderr, step.get("stderr")
         )
         self._check_files(case_name, step_name, step.get("files", []))
+        if "capture" in step:
+            substituter.capture(
+                _as_string(step["capture"], f"{case_name}:{step_name}.capture"),
+                completed.stdout,
+            )
         step_outputs[step_name] = completed
 
     def _run_write_step(

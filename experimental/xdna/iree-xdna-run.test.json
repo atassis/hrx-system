@@ -4,7 +4,7 @@
     {
       "name": "help describes the invocation contract",
       "run": {"tool": "iree-xdna-run", "args": ["--help"]},
-      "stdout": {"contains": ["--image=", "--columns=", "--invocation_count=", "--binding_memory=", "--binding=", "--output="]},
+      "stdout": {"contains": ["--image=", "--columns=", "--print_target=", "--invocation_count=", "--binding_memory=", "--binding=", "--output="]},
       "stderr": {"empty": true}
     },
     {
