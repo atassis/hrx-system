@@ -645,6 +645,12 @@ static iree_status_t probe_allocation_create(probe_t* probe, bool command,
     }
   }
   const uint64_t granularity = profile.allocation.byte_length_granularity;
+  uint64_t requested_alignment =
+      iree_max(alignment, profile.allocation.minimum_alignment);
+  if (profile.allocation.maximum_alignment != 0) {
+    requested_alignment =
+        iree_min(requested_alignment, profile.allocation.maximum_alignment);
+  }
   const amdf_memory_create_info_t create_info = {
       .type = AMDF_STRUCTURE_TYPE_MEMORY_CREATE_INFO,
       .structure_size = sizeof(create_info),
@@ -652,9 +658,7 @@ static iree_status_t probe_allocation_create(probe_t* probe, bool command,
       .access_count = 1,
       .required_flags = AMDF_MEMORY_FLAG_HOST_VISIBLE,
       .byte_length = iree_align_uint64(byte_length, granularity),
-      .minimum_alignment =
-          iree_min(iree_max(alignment, profile.allocation.minimum_alignment),
-                   profile.allocation.maximum_alignment),
+      .minimum_alignment = requested_alignment,
       .accesses = &access,
   };
   IREE_RETURN_IF_ERROR(IREE_HAL_AMD_STATUS_FROM_AMDF(
