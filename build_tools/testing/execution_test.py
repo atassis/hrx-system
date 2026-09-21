@@ -45,6 +45,11 @@ class ExecutionUnitTest(unittest.TestCase):
         with self.assertRaisesRegex(execution.SchemaError, "multi-argument command"):
             substituter.substitute("{tool:fixture}")
 
+    def test_capture_stores_stripped_stdout(self):
+        substituter = execution._Substituter({}, {})
+        substituter.capture("greeting", b"  hello world  \n")
+        self.assertEqual(substituter.substitute("say {greeting}"), "say hello world")
+
     def test_runner_launches_tool_command_prefix(self):
         with tempfile.TemporaryDirectory() as directory:
             manifest_path = Path(directory) / "manifest.json"
@@ -80,6 +85,140 @@ class ExecutionUnitTest(unittest.TestCase):
 
             self.assertEqual(
                 runner.run_manifest(manifest_path), execution.RunSummary(case_count=1)
+            )
+
+    def test_capture_value_is_available_to_later_step_substitution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "manifest.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "cases": [
+                            {
+                                "name": "capture then substitute",
+                                "steps": [
+                                    {
+                                        "name": "produce",
+                                        "run": {
+                                            "tool": "fixture",
+                                            "args": ["captured value"],
+                                        },
+                                        "capture": "greeting",
+                                    },
+                                    {
+                                        "name": "consume",
+                                        "run": {
+                                            "tool": "fixture",
+                                            "args": ["{greeting} suffix"],
+                                        },
+                                        "stdout": {
+                                            "contains": ["captured value suffix"]
+                                        },
+                                    },
+                                ],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            runner = execution.ExecutionRunner(
+                tools={
+                    "fixture": execution.ToolCommand(
+                        executable=sys.executable,
+                        arguments=("-c", "import sys; print(sys.argv[1])"),
+                    )
+                }
+            )
+
+            self.assertEqual(
+                runner.run_manifest(manifest_path), execution.RunSummary(case_count=1)
+            )
+
+    def test_capture_referenced_before_definition_is_unresolved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "manifest.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "cases": [
+                            {
+                                "name": "capture ordering",
+                                "steps": [
+                                    {
+                                        "name": "before",
+                                        "run": {
+                                            "tool": "fixture",
+                                            "args": ["{greeting}"],
+                                        },
+                                        "stdout": {"contains": ["{greeting}"]},
+                                    },
+                                    {
+                                        "name": "after",
+                                        "run": {"tool": "fixture", "args": ["value"]},
+                                        "capture": "greeting",
+                                    },
+                                ],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            runner = execution.ExecutionRunner(
+                tools={
+                    "fixture": execution.ToolCommand(
+                        executable=sys.executable,
+                        arguments=("-c", "import sys; print(sys.argv[1])"),
+                    )
+                }
+            )
+
+            self.assertEqual(
+                runner.run_manifest(manifest_path), execution.RunSummary(case_count=1)
+            )
+
+    def test_capture_does_not_leak_across_cases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "manifest.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "cases": [
+                            {
+                                "name": "captures greeting",
+                                "steps": [
+                                    {
+                                        "name": "capture",
+                                        "run": {"tool": "fixture", "args": ["hello"]},
+                                        "capture": "greeting",
+                                    }
+                                ],
+                            },
+                            {
+                                "name": "does not see prior capture",
+                                "run": {"tool": "fixture", "args": ["{greeting}"]},
+                                "stdout": {"contains": ["{greeting}"]},
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            runner = execution.ExecutionRunner(
+                tools={
+                    "fixture": execution.ToolCommand(
+                        executable=sys.executable,
+                        arguments=("-c", "import sys; print(sys.argv[1])"),
+                    )
+                }
+            )
+
+            self.assertEqual(
+                runner.run_manifest(manifest_path), execution.RunSummary(case_count=2)
             )
 
     def test_parse_tool_bindings_appends_fixed_arguments(self):

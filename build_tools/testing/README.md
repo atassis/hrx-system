@@ -58,6 +58,30 @@ adapter binds the tool to a single executable path. Tools launched through an
 interpreter or another multi-argument command prefix can be selected by
 `run.tool`, but cannot be flattened into a string substitution.
 
+A step's `capture` field stores its stripped stdout under a name, available
+as a `{name}` substitution in later steps of the same case:
+
+```json
+{
+  "steps": [
+    {
+      "name": "target",
+      "run": {"tool": "probe", "args": ["--print_target"]},
+      "capture": "target"
+    },
+    {
+      "name": "compile",
+      "run": {
+        "tool": "fixture",
+        "args": ["--target={target}"]
+      }
+    }
+  ]
+}
+```
+
+Captured names do not persist past the case that defines them.
+
 Run steps default to `exit: 0`. Stdout and stderr are ignored unless checks are
 declared:
 
