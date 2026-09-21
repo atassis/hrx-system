@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <array>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -52,6 +53,9 @@ constexpr size_t kElementCount = 16;
 constexpr size_t kBindingByteLength = kElementCount * sizeof(uint32_t);
 constexpr size_t kStorageByteLength = 3 * kBindingByteLength;
 constexpr uint8_t kGuardValue = 0xA5;
+// Submit-only reports enqueue latency alone, so a fixed count bounds real
+// time instead of --benchmark_min_time; see the registration below.
+constexpr int64_t kSubmitOnlyIterations = 200;
 using BindingValues = std::array<uint32_t, kElementCount>;
 constexpr BindingValues kValues = {
     0,          1,          2,          3,          7,          31,
@@ -180,6 +184,10 @@ class ExecutionBenchmark {
     skip_reason_ = nullptr;
   }
 
+  // Times the submit (SubmitAndWait: submit+wait) span with a steady clock
+  // via SetIterationTime rather than PauseTiming: a paused interval is not
+  // bounded by --benchmark_min_time, so an unbounded completion wait excluded
+  // that way defeats it.
   template <CompletionTiming completion_timing>
   void Run(benchmark::State& state) {
     if (skip_reason_) {
@@ -188,19 +196,19 @@ class ExecutionBenchmark {
     }
     for (auto iteration : state) {
       (void)iteration;
-      state.PauseTiming();
       WriteInputs();
-      state.ResumeTiming();
+      const auto start = std::chrono::steady_clock::now();
       const uint64_t submission = Submit(&command_);
       if constexpr (completion_timing == CompletionTiming::kIncluded) {
         Wait(submission);
-        state.PauseTiming();
-      } else {
-        state.PauseTiming();
+      }
+      const auto end = std::chrono::steady_clock::now();
+      state.SetIterationTime(
+          std::chrono::duration<double>(end - start).count());
+      if constexpr (completion_timing == CompletionTiming::kExcluded) {
         Wait(submission);
       }
       VerifyOutput(submission);
-      state.ResumeTiming();
     }
     state.SetItemsProcessed(state.iterations());
   }
@@ -586,13 +594,14 @@ int main(int argument_count, char** argument_values) {
       [&fixture](benchmark::State& state) {
         fixture.Run<CompletionTiming::kExcluded>(state);
       })
-      ->UseRealTime();
+      ->Iterations(kSubmitOnlyIterations)
+      ->UseManualTime();
   benchmark::RegisterBenchmark(
       "XdnaExecution/Independent/SubmitAndWait",
       [&fixture](benchmark::State& state) {
         fixture.Run<CompletionTiming::kIncluded>(state);
       })
-      ->UseRealTime();
+      ->UseManualTime();
   benchmark::RunSpecifiedBenchmarks();
   benchmark::Shutdown();
   fixture.Deinitialize();
